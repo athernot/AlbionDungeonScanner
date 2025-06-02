@@ -1,0 +1,47 @@
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{85FF635E-7EB4-49CA-B5CD-7449F11698C0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlbionDungeonScanner.Core", "src\AlbionDungeonScanner.Core\AlbionDungeonScanner.Core.csproj", "{D89D04C7-257F-4E82-8487-F63F0DF535FD}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlbionDungeonScanner.GUI", "src\AlbionDungeonScanner.GUI\AlbionDungeonScanner.GUI.csproj", "{C34C9DF8-8793-4DDB-99FC-58F59E84B551}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlbionDungeonScanner.Plugins", "src\AlbionDungeonScanner.Plugins\AlbionDungeonScanner.Plugins.csproj", "{107C7913-7DF6-4FE6-9DB4-B8C587E92875}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlbionDungeonScanner.Tests", "src\AlbionDungeonScanner.Tests\AlbionDungeonScanner.Tests.csproj", "{FCD1FA6C-419F-4276-B3C1-93E45B946A2C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D89D04C7-257F-4E82-8487-F63F0DF535FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D89D04C7-257F-4E82-8487-F63F0DF535FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D89D04C7-257F-4E82-8487-F63F0DF535FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D89D04C7-257F-4E82-8487-F63F0DF535FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C34C9DF8-8793-4DDB-99FC-58F59E84B551}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C34C9DF8-8793-4DDB-99FC-58F59E84B551}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C34C9DF8-8793-4DDB-99FC-58F59E84B551}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C34C9DF8-8793-4DDB-99FC-58F59E84B551}.Release|Any CPU.Build.0 = Release|Any CPU
+		{107C7913-7DF6-4FE6-9DB4-B8C587E92875}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{107C7913-7DF6-4FE6-9DB4-B8C587E92875}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{107C7913-7DF6-4FE6-9DB4-B8C587E92875}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{107C7913-7DF6-4FE6-9DB4-B8C587E92875}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FCD1FA6C-419F-4276-B3C1-93E45B946A2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FCD1FA6C-419F-4276-B3C1-93E45B946A2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FCD1FA6C-419F-4276-B3C1-93E45B946A2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FCD1FA6C-419F-4276-B3C1-93E45B946A2C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{D89D04C7-257F-4E82-8487-F63F0DF535FD} = {85FF635E-7EB4-49CA-B5CD-7449F11698C0}
+		{C34C9DF8-8793-4DDB-99FC-58F59E84B551} = {85FF635E-7EB4-49CA-B5CD-7449F11698C0}
+		{107C7913-7DF6-4FE6-9DB4-B8C587E92875} = {85FF635E-7EB4-49CA-B5CD-7449F11698C0}
+		{FCD1FA6C-419F-4276-B3C1-93E45B946A2C} = {85FF635E-7EB4-49CA-B5CD-7449F11698C0}
+	EndGlobalSection
+EndGlobal

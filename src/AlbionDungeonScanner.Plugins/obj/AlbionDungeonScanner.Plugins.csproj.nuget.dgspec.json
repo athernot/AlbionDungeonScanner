@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\Ghost\\AlbionDungeonScanner\\src\\AlbionDungeonScanner.Plugins\\AlbionDungeonScanner.Plugins.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\Ghost\\AlbionDungeonScanner\\src\\AlbionDungeonScanner.Plugins\\AlbionDungeonScanner.Plugins.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Ghost\\AlbionDungeonScanner\\src\\AlbionDungeonScanner.Plugins\\AlbionDungeonScanner.Plugins.csproj",
+        "projectName": "AlbionDungeonScanner.Plugins",
+        "projectPath": "C:\\Users\\Ghost\\AlbionDungeonScanner\\src\\AlbionDungeonScanner.Plugins\\AlbionDungeonScanner.Plugins.csproj",
+        "packagesPath": "C:\\Users\\Ghost\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Ghost\\AlbionDungeonScanner\\src\\AlbionDungeonScanner.Plugins\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Ghost\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0": {
+            "targetAlias": "net8.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net8.0": {
+          "targetAlias": "net8.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.100/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}
