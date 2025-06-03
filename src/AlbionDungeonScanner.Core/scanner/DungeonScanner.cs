@@ -1,283 +1,225 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
+using AlbionDungeonScanner.Core.Avalonian;
+using AlbionDungeonScanner.Core.Configuration;
+using AlbionDungeonScanner.Core.Data;
+using AlbionDungeonScanner.Core.Detection;
 using AlbionDungeonScanner.Core.Models;
 using AlbionDungeonScanner.Core.Network;
-using AlbionDungeonScanner.Core.Detection;
-using AlbionDungeonScanner.Core.Data;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options; // Diperlukan untuk IOptions
 
-namespace AlbionDungeonScanner.Core.Scanner
+namespace AlbionDungeonScanner.Core.scanner
 {
-    public class DungeonScanner
+    // Base class
+    public class DungeonScanner : IDisposable
     {
+        protected readonly ILogger<DungeonScanner> _logger;
         protected readonly NetworkCapture _networkCapture;
         protected readonly EntityDetector _entityDetector;
         protected readonly DataRepository _dataRepository;
-        protected readonly ILogger<DungeonScanner> _logger;
-        protected bool _isScanning;
+        protected readonly ScannerConfiguration _configuration;
 
-        public event Action<DungeonEntity> OnEntityDetected;
-        public event Action<DungeonEntity> OnEntityRemoved;
-        public event Action<bool> OnScanningStatusChanged;
-        public event Action<string> OnStatusMessage;
+        private bool _isScanning;
+        private List<DungeonEntity> _detectedEntities;
+
+        public event Action<DungeonEntity> EntityDetected;
+        public event Action<DungeonEntity> EntityRemoved;
+        public event Action<string> StatusMessage;
+        public event Action ScanStarted;
+        public event Action ScanStopped;
 
         public bool IsScanning => _isScanning;
+        public IReadOnlyList<DungeonEntity> DetectedEntities => _detectedEntities.AsReadOnly();
 
-        public DungeonScanner(ILogger<DungeonScanner> logger = null)
+        // Constructor untuk DungeonScanner dasar
+        public DungeonScanner(
+            ILogger<DungeonScanner> logger,
+            NetworkCapture networkCapture,
+            EntityDetector entityDetector,
+            DataRepository dataRepository,
+            IOptions<ScannerConfiguration> configuration) // Gunakan IOptions untuk konfigurasi
         {
-            _logger = logger;
-            _dataRepository = new DataRepository(logger);
-            _entityDetector = new EntityDetector(logger);
-            _networkCapture = new NetworkCapture(logger);
-
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _networkCapture = networkCapture ?? throw new ArgumentNullException(nameof(networkCapture));
+            _entityDetector = entityDetector ?? throw new ArgumentNullException(nameof(entityDetector));
+            _dataRepository = dataRepository ?? throw new ArgumentNullException(nameof(dataRepository));
+            _configuration = configuration?.Value ?? throw new ArgumentNullException(nameof(configuration));
+            
+            _detectedEntities = new List<DungeonEntity>();
             SetupEventHandlers();
         }
 
-        private void SetupEventHandlers()
+        protected virtual void SetupEventHandlers()
         {
-            // Network capture events
-            _networkCapture.PacketReceived += OnPacketReceived;
+            _networkCapture.GameEventReceived += OnGameEventReceived;
             _networkCapture.StatusChanged += OnNetworkStatusChanged;
-
-            // Entity detector events
-            _entityDetector.OnEntityDetected += OnEntityDetectedInternal;
-            _entityDetector.OnEntityRemoved += OnEntityRemovedInternal;
+            _entityDetector.EntityDetectedEvent += OnEntityDetectedInternal;
+            _entityDetector.EntityRemovedEvent += OnEntityRemovedInternal;
         }
 
-        public virtual async Task<bool> StartAsync()
+        protected virtual void UnsubscribeEventHandlers()
         {
-            try
+            _networkCapture.GameEventReceived -= OnGameEventReceived;
+            _networkCapture.StatusChanged -= OnNetworkStatusChanged;
+            _entityDetector.EntityDetectedEvent -= OnEntityDetectedInternal;
+            _entityDetector.EntityRemovedEvent -= OnEntityRemovedInternal;
+        }
+
+
+        public virtual async Task StartScanAsync(string networkInterfaceName = "auto")
+        {
+            if (_isScanning)
             {
-                _logger?.LogInformation("Starting dungeon scanner...");
-                OnStatusMessage?.Invoke("Starting scanner...");
+                _logger.LogWarning("Scan is already in progress.");
+                StatusMessage?.Invoke("Scan already running.");
+                return;
+            }
 
-                // Wait for data to load
-                var timeout = DateTime.UtcNow.AddSeconds(30);
-                while (!_dataRepository.IsDataLoaded() && DateTime.UtcNow < timeout)
-                {
-                    await Task.Delay(1000);
-                    OnStatusMessage?.Invoke("Loading game data...");
-                }
+            _logger.LogInformation("Attempting to start scan...");
+            StatusMessage?.Invoke("Starting scan...");
+            _detectedEntities.Clear();
+            _entityDetector.ClearEntities(); // Bersihkan entitas di detector juga
 
-                if (!_dataRepository.IsDataLoaded())
-                {
-                    _logger?.LogWarning("Game data not fully loaded, continuing with fallback data");
-                }
-
-                // Start network capture
-                var captureStarted = _networkCapture.StartCapture();
-                if (!captureStarted)
-                {
-                    OnStatusMessage?.Invoke("Failed to start network capture");
-                    return false;
-                }
-
+            if (await Task.Run(() => _networkCapture.StartCapture(networkInterfaceName))) // Jalankan di thread lain agar UI tidak freeze
+            {
                 _isScanning = true;
-                OnScanningStatusChanged?.Invoke(true);
-                OnStatusMessage?.Invoke("Scanner active - monitoring dungeon entities");
-
-                _logger?.LogInformation("Dungeon scanner started successfully");
-                return true;
+                ScanStarted?.Invoke();
+                _logger.LogInformation("Scan started successfully.");
+                StatusMessage?.Invoke("Scan active.");
             }
-            catch (Exception ex)
+            else
             {
-                _logger?.LogError(ex, "Failed to start dungeon scanner");
-                OnStatusMessage?.Invoke($"Scanner start failed: {ex.Message}");
-                return false;
+                _logger.LogError("Failed to start network capture. Scan cannot start.");
+                StatusMessage?.Invoke("Failed to start scan. Check network device and permissions.");
             }
         }
 
-        public virtual async Task StopAsync()
+        public virtual async Task StopScanAsync()
         {
-            try
+            if (!_isScanning)
             {
-                _logger?.LogInformation("Stopping dungeon scanner...");
-                OnStatusMessage?.Invoke("Stopping scanner...");
-
-                _networkCapture.StopCapture();
-                _entityDetector.ClearEntities();
-
-                _isScanning = false;
-                OnScanningStatusChanged?.Invoke(false);
-                OnStatusMessage?.Invoke("Scanner stopped");
-
-                _logger?.LogInformation("Dungeon scanner stopped");
-                await Task.CompletedTask;
+                _logger.LogWarning("Scan is not currently running.");
+                StatusMessage?.Invoke("Scan not active.");
+                return;
             }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error stopping dungeon scanner");
-                OnStatusMessage?.Invoke($"Error stopping scanner: {ex.Message}");
-            }
+
+            _logger.LogInformation("Stopping scan...");
+            StatusMessage?.Invoke("Stopping scan...");
+            await Task.Run(() => _networkCapture.StopCapture()); // Jalankan di thread lain
+            _isScanning = false;
+            ScanStopped?.Invoke();
+            _logger.LogInformation("Scan stopped.");
+            StatusMessage?.Invoke("Scan stopped.");
         }
 
-        private void OnPacketReceived(PhotonEvent photonEvent)
+        protected virtual void OnGameEventReceived(PhotonEvent photonEvent)
         {
-            try
+            if (!_isScanning) return;
+            
+            // Log detail event jika logging verbose diaktifkan
+            if (_logger.IsEnabled(LogLevel.Trace) && photonEvent != null)
             {
-                _entityDetector.ProcessEvent(photonEvent);
+                 string eventName = _networkCapture.GetEventName(photonEvent.Code); // Asumsi GetEventName ada di NetworkCapture atau PhotonPacketParser
+                 _logger.LogTrace("Scanner received game event. Code: {EventCode} ({EventName}), Params: {ParamCount}", 
+                                 photonEvent.Code, eventName, photonEvent.Parameters?.Count ?? 0);
             }
-            catch (Exception ex)
-            {
-                _logger?.LogDebug($"Error processing packet: {ex.Message}");
-            }
-        }
-
-        private void OnNetworkStatusChanged(string status)
-        {
-            OnStatusMessage?.Invoke($"Network: {status}");
+            _entityDetector.ProcessEvent(photonEvent);
         }
 
         protected virtual void OnEntityDetectedInternal(DungeonEntity entity)
         {
-            try
-            {
-                _logger?.LogDebug($"Entity detected: {entity.Type} - {entity.Name} at {entity.Position}");
-                
-                // Special handling for high-value entities
-                if (IsHighValueEntity(entity))
-                {
-                    _logger?.LogInformation($"High-value entity detected: {entity.Name}");
-                    OnStatusMessage?.Invoke($"⭐ High-value {entity.Type}: {entity.Name}");
-                }
+            if (entity == null) return;
 
-                OnEntityDetected?.Invoke(entity);
-            }
-            catch (Exception ex)
+            var existingEntity = _detectedEntities.FirstOrDefault(e => e.Id == entity.Id);
+            if (existingEntity == null)
             {
-                _logger?.LogError(ex, "Error handling entity detection");
+                _detectedEntities.Add(entity);
+                EntityDetected?.Invoke(entity); // Picu event untuk GUI/plugin
+                _logger.LogDebug("Entity added to scanner list: {EntityName} ({EntityType})", entity.Name, entity.Type);
+            }
+            else
+            {
+                // Update info jika perlu, misal posisi atau LastSeen
+                existingEntity.Position = entity.Position;
+                existingEntity.LastSeen = entity.LastSeen;
+                // Pertimbangkan apakah akan memicu event update jika ada subscriber yang butuh
             }
         }
 
         protected virtual void OnEntityRemovedInternal(DungeonEntity entity)
         {
-            try
+            if (entity == null) return;
+
+            var removed = _detectedEntities.RemoveAll(e => e.Id == entity.Id) > 0;
+            if (removed)
             {
-                _logger?.LogDebug($"Entity removed: {entity.Type} - {entity.Name}");
-                OnEntityRemoved?.Invoke(entity);
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error handling entity removal");
-            }
-        }
-
-        private bool IsHighValueEntity(DungeonEntity entity)
-        {
-            // Define high-value criteria
-            switch (entity.Type)
-            {
-                case EntityType.Boss:
-                    return true; // All bosses are high-value
-
-                case EntityType.Chest:
-                    return entity.Name.Contains("T6") || 
-                           entity.Name.Contains("T7") || 
-                           entity.Name.Contains("T8") ||
-                           entity.Name.Contains("Avalonian");
-
-                case EntityType.ResourceNode:
-                    return entity.Name.Contains("Avalonian") ||
-                           entity.Name.Contains("T6") ||
-                           entity.Name.Contains("T7") ||
-                           entity.Name.Contains("T8");
-
-                default:
-                    return false;
+                EntityRemoved?.Invoke(entity); // Picu event untuk GUI/plugin
+                _logger.LogDebug("Entity removed from scanner list: {EntityName}", entity.Name);
             }
         }
 
-        public List<DungeonEntity> GetCurrentEntities()
+        private void OnNetworkStatusChanged(string status)
         {
-            return _entityDetector.GetCurrentEntities();
+            StatusMessage?.Invoke($"Network: {status}");
         }
 
-        public Dictionary<EntityType, int> GetEntityCounts()
+        public void Dispose()
         {
-            var entities = _entityDetector.GetCurrentEntities();
-            var counts = new Dictionary<EntityType, int>();
-
-            foreach (EntityType type in Enum.GetValues<EntityType>())
-            {
-                counts[type] = entities.Count(e => e.Type == type);
-            }
-
-            return counts;
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
-        public List<string> GetAvailableNetworkInterfaces()
+        protected virtual void Dispose(bool disposing)
         {
-            return _networkCapture.GetAvailableInterfaces();
-        }
-
-        public async Task RefreshGameDataAsync()
-        {
-            try
+            if (disposing)
             {
-                OnStatusMessage?.Invoke("Refreshing game data...");
-                await _dataRepository.RefreshDataAsync();
-                OnStatusMessage?.Invoke("Game data refreshed");
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error refreshing game data");
-                OnStatusMessage?.Invoke("Failed to refresh game data");
-            }
-        }
-
-        public Dictionary<string, object> GetScannerStatistics()
-        {
-            var entities = _entityDetector.GetCurrentEntities();
-            var dataStats = _dataRepository.GetDataStatistics();
-
-            return new Dictionary<string, object>
-            {
-                ["IsScanning"] = _isScanning,
-                ["TotalEntities"] = entities.Count,
-                ["EntityCounts"] = GetEntityCounts(),
-                ["AvalonianEntities"] = entities.Count(e => e.DungeonType == DungeonType.Avalonian),
-                ["DataLoadTime"] = _dataRepository.GetLastDataLoadTime(),
-                ["LoadedMobs"] = dataStats["Mobs"],
-                ["LoadedChests"] = dataStats["Chests"],
-                ["LoadedItems"] = dataStats["Items"]
-            };
-        }
-
-        public virtual void Dispose()
-        {
-            try
-            {
-                _ = StopAsync();
-                _networkCapture?.Dispose();
-                _dataRepository?.Dispose();
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogError(ex, "Error disposing scanner");
+                UnsubscribeEventHandlers();
+                if (_isScanning)
+                {
+                    Task.Run(async () => await StopScanAsync()).Wait(TimeSpan.FromSeconds(2)); // Beri sedikit waktu untuk stop
+                }
+                _networkCapture?.Dispose(); // Pastikan NetworkCapture IDisposable
             }
         }
     }
 
-    // Enhanced scanner dengan fitur tambahan
+    // Enhanced scanner dengan fitur Avalonian
     public class EnhancedDungeonScanner : DungeonScanner
     {
-        public event Action<AvalonianScanResult> OnAvalonianEntityDetected;
+        private readonly AvalonianDetector _avalonianDetector;
+        private readonly ILogger<EnhancedDungeonScanner> _enhancedLogger; // Logger spesifik untuk Enhanced
+
+        // Event ini sekarang ada dan akan digunakan oleh GUI
+        public event Action<AvalonianScanResult> AvalonianScanResultUpdated; // Ganti nama agar lebih deskriptif
         
         public AvalonianDungeonMap CurrentAvalonianMap { get; private set; }
 
-        public EnhancedDungeonScanner(ILogger<EnhancedDungeonScanner> logger = null) : base(logger)
+        public EnhancedDungeonScanner(
+            ILogger<EnhancedDungeonScanner> enhancedLogger, // Logger khusus untuk ini
+            NetworkCapture networkCapture,
+            EntityDetector entityDetector,
+            DataRepository dataRepository,
+            IOptions<ScannerConfiguration> configuration, // Terima konfigurasi via IOptions
+            AvalonianDetector avalonianDetector) // Inject AvalonianDetector
+            : base(enhancedLogger, networkCapture, entityDetector, dataRepository, configuration) // Panggil base constructor
         {
-            // Enhanced scanner akan dikembangkan lebih lanjut dengan Avalonian detector
+            _enhancedLogger = enhancedLogger ?? throw new ArgumentNullException(nameof(enhancedLogger));
+            _avalonianDetector = avalonianDetector ?? throw new ArgumentNullException(nameof(avalonianDetector));
         }
 
         protected override void OnEntityDetectedInternal(DungeonEntity entity)
         {
-            base.OnEntityDetectedInternal(entity);
+            base.OnEntityDetectedInternal(entity); // Panggil implementasi base class untuk deteksi umum
 
-            // Special processing untuk Avalonian entities
-            if (entity.DungeonType == DungeonType.Avalonian)
+            if (entity == null) return;
+
+            // Proses khusus untuk entitas Avalonian
+            if (entity.DungeonType == DungeonType.Avalonian || _avalonianDetector.IsAvalonianEntity(entity.Name, entity.Id))
             {
+                 _enhancedLogger.LogDebug("Processing Avalonian entity in EnhancedDungeonScanner: {EntityName}", entity.Name);
                 ProcessAvalonianEntity(entity);
             }
         }
@@ -286,21 +228,50 @@ namespace AlbionDungeonScanner.Core.Scanner
         {
             try
             {
-                // Ini akan diintegrasikan dengan AvalonianDetector nanti
-                _logger?.LogInformation($"Avalonian entity detected: {entity.Name}");
-                
-                // Placeholder untuk Avalonian processing
-                // Will be enhanced when AvalonianDetector is integrated
+                var avalonianScanResult = _avalonianDetector.ProcessAvalonianEntity(entity.Id, entity.Position);
+                if (avalonianScanResult != null)
+                {
+                    // Picu event yang bisa ditangkap oleh GUI atau plugin
+                    AvalonianScanResultUpdated?.Invoke(avalonianScanResult);
+                    _enhancedLogger.LogInformation("Avalonian scan result updated for {EntityName}.", avalonianScanResult.EntityData?.Name ?? entity.Name);
+
+                    // Update map internal
+                    CurrentAvalonianMap = _avalonianDetector.GenerateMap();
+                    StatusMessage?.Invoke($"Avalonian Map Updated: {CurrentAvalonianMap?.Rooms?.Count ?? 0} rooms detected.");
+                }
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error processing Avalonian entity");
+                _enhancedLogger.LogError(ex, "Error processing Avalonian entity: {EntityName}", entity.Name);
             }
         }
-
-        public void UpdateAvalonianMap(AvalonianDungeonMap map)
+        
+        public async Task<AvalonianDungeonMap> GetCurrentAvalonianMapAsync()
         {
-            CurrentAvalonianMap = map;
+            // Pastikan GenerateMap tidak blocking atau jalankan di thread terpisah jika perlu
+            return await Task.Run(() => _avalonianDetector.GenerateMap());
+        }
+
+        // Override StartScanAsync jika ada logika tambahan khusus untuk EnhancedScanner saat memulai
+        public override async Task StartScanAsync(string networkInterfaceName = "auto")
+        {
+            _enhancedLogger.LogInformation("EnhancedDungeonScanner starting scan...");
+            _avalonianDetector.Reset(); // Bersihkan state AvalonianDetector sebelum scan baru
+            await base.StartScanAsync(networkInterfaceName);
+            StatusMessage?.Invoke("Enhanced Scan active with Avalonian detection.");
+        }
+
+        // Override StopScanAsync jika ada logika tambahan
+        public override async Task StopScanAsync()
+        {
+            _enhancedLogger.LogInformation("EnhancedDungeonScanner stopping scan...");
+            await base.StopScanAsync();
+             // Anda mungkin ingin men-generate laporan Avalonian terakhir di sini
+            var finalMap = _avalonianDetector.GenerateMap();
+            if (finalMap != null && finalMap.Rooms.Any())
+            {
+                 StatusMessage?.Invoke($"Final Avalonian map generated with {finalMap.Rooms.Count} rooms.");
+            }
         }
     }
 }

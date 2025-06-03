@@ -2,27 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using SharpPcap;
-using PacketDotNet;
+using PacketDotNet; // Pastikan ini ada di .csproj jika belum
 using AlbionDungeonScanner.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace AlbionDungeonScanner.Core.Network
 {
-    public class NetworkCapture
+    public class NetworkCapture : IDisposable
     {
         private ICaptureDevice _device;
-        private readonly PhotonPacketParser _parser;
+        private readonly PhotonPacketParser _parser; // Akan di-inject
         private readonly ILogger<NetworkCapture> _logger;
         private bool _isCapturing;
 
-        public event Action<PhotonEvent> PacketReceived;
+        public event Action<PhotonEvent> GameEventReceived; // Ganti nama agar lebih spesifik
         public event Action<string> StatusChanged;
 
         public bool IsCapturing => _isCapturing;
 
-        public NetworkCapture(ILogger<NetworkCapture> logger = null)
+        public NetworkCapture(ILogger<NetworkCapture> logger, PhotonPacketParser parser) // Terima parser via DI
         {
-            _parser = new PhotonPacketParser();
+            _parser = parser;
             _logger = logger;
         }
 
@@ -30,6 +30,7 @@ namespace AlbionDungeonScanner.Core.Network
         {
             try
             {
+                // ... (logika pemilihan device tetap sama) ...
                 var devices = CaptureDeviceList.Instance;
                 if (devices.Count < 1)
                 {
@@ -38,32 +39,41 @@ namespace AlbionDungeonScanner.Core.Network
                     return false;
                 }
 
-                // Select device
-                if (string.IsNullOrEmpty(interfaceName) || interfaceName == "auto")
+                if (string.IsNullOrEmpty(interfaceName) || interfaceName.Equals("auto", StringComparison.OrdinalIgnoreCase))
                 {
-                    _device = devices.FirstOrDefault(d => d.Started == false);
+                    _device = devices.FirstOrDefault(d => d.Addresses.Any(a => a.Addr != null && a.Addr.ipAddress != null && !IPAddress.IsLoopback(a.Addr.ipAddress))) ?? devices.FirstOrDefault();
                 }
                 else
                 {
-                    _device = devices.FirstOrDefault(d => d.Name.Contains(interfaceName) || d.Description.Contains(interfaceName));
+                    _device = devices.FirstOrDefault(d => (d.Name != null && d.Name.Contains(interfaceName, StringComparison.OrdinalIgnoreCase)) || 
+                                                        (d.Description != null && d.Description.Contains(interfaceName, StringComparison.OrdinalIgnoreCase)));
+                }
+                
+                if (_device == null && devices.Count > 0)
+                {
+                     _logger?.LogWarning("Specified interface not found, falling back to the first available device.");
+                    _device = devices[0];
+                }
+                 else if (_device == null)
+                {
+                    _logger?.LogError("No suitable capture device found or selected interface is invalid.");
+                    StatusChanged?.Invoke("No suitable network device found");
+                    return false;
                 }
 
-                if (_device == null)
-                {
-                    _device = devices[0]; // Fallback to first device
-                }
 
                 _device.OnPacketArrival += OnPacketArrival;
-                _device.Open(DeviceMode.Promiscuous, 1000);
+                _device.Open(DeviceMode.Promiscuous, 1000); // Baca timeout 1000ms
                 
-                // Filter untuk Albion Online traffic (biasanya port 5055 atau 5056)
-                _device.Filter = "udp port 5055 or udp port 5056";
+                // Filter untuk Albion Online traffic (biasanya port UDP 5055 atau 5056)
+                // Periksa apakah game menggunakan port lain atau TCP jika UDP tidak menangkap apa pun.
+                _device.Filter = "udp port 5055 or udp port 5056"; 
                 
                 _device.StartCapture();
                 _isCapturing = true;
                 
-                _logger?.LogInformation($"Packet capture started on device: {_device.Description}");
-                StatusChanged?.Invoke($"Capturing on {_device.Description}");
+                _logger?.LogInformation("Packet capture started on device: {DeviceDescription}", _device.Description);
+                StatusChanged?.Invoke($"Capturing on: {_device.Description}");
                 
                 return true;
             }
@@ -83,16 +93,16 @@ namespace AlbionDungeonScanner.Core.Network
                 {
                     _device.StopCapture();
                     _device.Close();
-                    _device.OnPacketArrival -= OnPacketArrival;
+                    // _device.OnPacketArrival -= OnPacketArrival; // Dihapus saat device di-dispose
                     _isCapturing = false;
                     
-                    _logger?.LogInformation("Packet capture stopped");
-                    StatusChanged?.Invoke("Capture stopped");
+                    _logger?.LogInformation("Packet capture stopped.");
+                    StatusChanged?.Invoke("Capture stopped.");
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error stopping packet capture");
+                _logger?.LogError(ex, "Error stopping packet capture.");
             }
         }
 
@@ -103,25 +113,25 @@ namespace AlbionDungeonScanner.Core.Network
                 var packet = Packet.ParsePacket(e.Packet.LinkLayerType, e.Packet.Data);
                 var udpPacket = packet.Extract<UdpPacket>();
                 
-                if (udpPacket != null)
+                if (udpPacket != null && udpPacket.PayloadData != null && udpPacket.PayloadData.Length > 0)
                 {
-                    var photonEvent = _parser.ParsePacket(udpPacket.PayloadData);
+                    // Langsung parse seluruh payload UDP sebagai satu message Photon
+                    PhotonEvent photonEvent = _parser.ParseMessage(udpPacket.PayloadData);
                     if (photonEvent != null)
                     {
-                        PacketReceived?.Invoke(photonEvent);
+                        GameEventReceived?.Invoke(photonEvent);
                     }
                 }
             }
             catch (Exception ex)
             {
-                _logger?.LogDebug($"Error processing packet: {ex.Message}");
+                _logger?.LogDebug(ex, "Error processing raw packet arrival.");
             }
         }
 
         public List<string> GetAvailableInterfaces()
         {
             var interfaces = new List<string>();
-            
             try
             {
                 var devices = CaptureDeviceList.Instance;
@@ -134,14 +144,19 @@ namespace AlbionDungeonScanner.Core.Network
             {
                 _logger?.LogError(ex, "Error getting network interfaces");
             }
-
             return interfaces;
         }
 
         public void Dispose()
         {
             StopCapture();
-            _device?.Dispose();
+            if (_device != null)
+            {
+                _device.OnPacketArrival -= OnPacketArrival; // Pastikan unsubscribe
+                _device.Dispose(); // SharpPcap device mungkin tidak IDisposable, tapi jika ya, ini baik
+                _device = null;
+            }
+            _logger?.LogInformation("NetworkCapture disposed.");
         }
     }
 }
