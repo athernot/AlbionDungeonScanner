@@ -3,10 +3,463 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:AlbionDungeonScanner.GUI"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="Albion Dungeon Scanner" 
+        Height="900" Width="1400"
+        MinHeight="700" MinWidth="1200"
+        Background="#FF1E1E1E"
+        WindowStartupLocation="CenterScreen"
+        Icon="Resources/scanner_icon.ico">
+    
+    <Window.Resources>
+        <!-- Modern Dark Theme Colors -->
+        <SolidColorBrush x:Key="PrimaryBackground" Color="#FF1E1E1E"/>
+        <SolidColorBrush x:Key="SecondaryBackground" Color="#FF2D2D30"/>
+        <SolidColorBrush x:Key="TertiaryBackground" Color="#FF3E3E42"/>
+        <SolidColorBrush x:Key="AccentColor" Color="#FF007ACC"/>
+        <SolidColorBrush x:Key="SuccessColor" Color="#FF4CAF50"/>
+        <SolidColorBrush x:Key="WarningColor" Color="#FFFF9800"/>
+        <SolidColorBrush x:Key="ErrorColor" Color="#FFF44336"/>
+        <SolidColorBrush x:Key="AvalonianColor" Color="#FFGOLD"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#FFFFFFFF"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#FFCCCCCC"/>
+        
+        <!-- Button Styles -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource AccentColor}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" 
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                            VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#FF005A9E"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Background" Value="#FF004578"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
+        <!-- Card Style for Panels -->
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SecondaryBackground}"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="8"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="Black" ShadowDepth="2" BlurRadius="8" Opacity="0.3"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- DataGrid Style -->
+        <Style x:Key="ModernDataGrid" TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource SecondaryBackground}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource TertiaryBackground}"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource TertiaryBackground}"/>
+            <Setter Property="RowBackground" Value="Transparent"/>
+            <Setter Property="AlternatingRowBackground" Value="#FF252526"/>
+            <Setter Property="SelectionMode" Value="Single"/>
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserResizeRows" Value="False"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+        </Style>
+        
+        <!-- Status Indicator Style -->
+        <Style x:Key="StatusIndicator" TargetType="Ellipse">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="60"/>  <!-- Header -->
+            <RowDefinition Height="*"/>   <!-- Main Content -->
+            <RowDefinition Height="30"/>  <!-- Status Bar -->
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{StaticResource TertiaryBackground}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- Title and Scanner Status -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" 
+                           VerticalAlignment="Center" Margin="20,0">
+                    <Image Source="Resources/scanner_icon.png" Width="32" Height="32"/>
+                    <TextBlock Text="Albion Dungeon Scanner" 
+                              FontSize="18" FontWeight="Bold" 
+                              Foreground="{StaticResource TextPrimary}"
+                              VerticalAlignment="Center" Margin="12,0,20,0"/>
+                    
+                    <Ellipse x:Name="StatusIndicator" Style="{StaticResource StatusIndicator}"
+                            Fill="{StaticResource ErrorColor}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="StatusText" Text="Disconnected" 
+                              Foreground="{StaticResource TextSecondary}"
+                              VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Control Buttons -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" 
+                           VerticalAlignment="Center" Margin="20,0">
+                    <Button x:Name="StartStopButton" Content="Start Scanner" 
+                           Style="{StaticResource ModernButton}" 
+                           Click="StartStopButton_Click" Margin="0,0,10,0"/>
+                    <Button x:Name="SettingsButton" Content="Settings" 
+                           Style="{StaticResource ModernButton}" 
+                           Click="SettingsButton_Click" Margin="0,0,10,0"/>
+                    <Button x:Name="PluginsButton" Content="Plugins" 
+                           Style="{StaticResource ModernButton}" 
+                           Click="PluginsButton_Click"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="300"/>  <!-- Left Panel -->
+                <ColumnDefinition Width="*"/>    <!-- Center Map -->
+                <ColumnDefinition Width="350"/>  <!-- Right Panel -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Panel - Entity List -->
+            <Border Grid.Column="0" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Entity Filter -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                        <TextBlock Text="Detected Entities" FontSize="16" FontWeight="Bold"
+                                  Foreground="{StaticResource TextPrimary}" Margin="0,0,0,8"/>
+                        <ComboBox x:Name="EntityFilterCombo" 
+                                 Background="{StaticResource TertiaryBackground}"
+                                 Foreground="{StaticResource TextPrimary}">
+                            <ComboBoxItem Content="All" IsSelected="True"/>
+                            <ComboBoxItem Content="Chests"/>
+                            <ComboBoxItem Content="Bosses"/>
+                            <ComboBoxItem Content="Elite Mobs"/>
+                            <ComboBoxItem Content="Avalonian Only"/>
+                        </ComboBox>
+                    </StackPanel>
+
+                    <!-- Entity List -->
+                    <DataGrid x:Name="EntityDataGrid" Grid.Row="1" 
+                             Style="{StaticResource ModernDataGrid}"
+                             SelectionChanged="EntityDataGrid_SelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="60"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Tier" Binding="{Binding Tier}" Width="40"/>
+                            <DataGridTemplateColumn Header="Value" Width="80">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding EstimatedValue, StringFormat='{}{0:N0}'}"
+                                                  Foreground="{Binding ValueColor}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Quick Stats -->
+                    <Border Grid.Row="2" Background="{StaticResource TertiaryBackground}"
+                           CornerRadius="4" Padding="8" Margin="0,12,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Total Entities" FontSize="10" 
+                                          Foreground="{StaticResource TextSecondary}"/>
+                                <TextBlock x:Name="TotalEntitiesText" Text="0" FontSize="16" FontWeight="Bold"
+                                          Foreground="{StaticResource TextPrimary}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Est. Value" FontSize="10" 
+                                          Foreground="{StaticResource TextSecondary}"/>
+                                <TextBlock x:Name="TotalValueText" Text="0" FontSize="16" FontWeight="Bold"
+                                          Foreground="{StaticResource SuccessColor}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Center Panel - Dungeon Map -->
+            <Border Grid.Column="1" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Map Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock Grid.Column="0" Text="Dungeon Map" FontSize="16" FontWeight="Bold"
+                                  Foreground="{StaticResource TextPrimary}"/>
+                        
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="CenterMapButton" Content="Center" 
+                                   Style="{StaticResource ModernButton}" 
+                                   Click="CenterMapButton_Click" Margin="0,0,8,0"
+                                   Padding="8,4"/>
+                            <Button x:Name="ExportMapButton" Content="Export" 
+                                   Style="{StaticResource ModernButton}" 
+                                   Click="ExportMapButton_Click"
+                                   Padding="8,4"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Map Canvas -->
+                    <Border Grid.Row="1" Background="{StaticResource TertiaryBackground}" 
+                           CornerRadius="4" ClipToBounds="True">
+                        <ScrollViewer x:Name="MapScrollViewer" 
+                                     HorizontalScrollBarVisibility="Auto"
+                                     VerticalScrollBarVisibility="Auto"
+                                     ZoomMode="Enabled">
+                            <Canvas x:Name="DungeonMapCanvas" 
+                                   Background="#FF0A0A0A"
+                                   Width="800" Height="600"
+                                   MouseLeftButtonDown="DungeonMapCanvas_MouseLeftButtonDown"/>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Map Controls -->
+                    <Grid Grid.Row="2" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <!-- Legend -->
+                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <Border Background="{StaticResource SuccessColor}" Width="12" Height="12" 
+                                   CornerRadius="6" Margin="0,0,4,0"/>
+                            <TextBlock Text="Chest" FontSize="10" Foreground="{StaticResource TextSecondary}" 
+                                      Margin="0,0,12,0"/>
+                            
+                            <Border Background="{StaticResource ErrorColor}" Width="12" Height="12" 
+                                   CornerRadius="6" Margin="0,0,4,0"/>
+                            <TextBlock Text="Boss" FontSize="10" Foreground="{StaticResource TextSecondary}" 
+                                      Margin="0,0,12,0"/>
+                            
+                            <Border Background="{StaticResource AvalonianColor}" Width="12" Height="12" 
+                                   CornerRadius="6" Margin="0,0,4,0"/>
+                            <TextBlock Text="Avalonian" FontSize="10" Foreground="{StaticResource TextSecondary}"/>
+                        </StackPanel>
+                        
+                        <!-- Zoom Controls -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <TextBlock Text="Zoom:" FontSize="10" Foreground="{StaticResource TextSecondary}" 
+                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Slider x:Name="ZoomSlider" Width="100" Minimum="0.5" Maximum="3.0" Value="1.0"
+                                   ValueChanged="ZoomSlider_ValueChanged"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- Right Panel - Avalonian Details -->
+            <Border Grid.Column="2" Style="{StaticResource Card}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Avalonian Header -->
+                    <TextBlock Grid.Row="0" Text="Avalonian Analysis" FontSize="16" FontWeight="Bold"
+                              Foreground="{StaticResource AvalonianColor}" Margin="0,0,0,12"/>
+                    
+                    <!-- Avalonian Content -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="AvalonianDetailsPanel">
+                            
+                            <!-- Dungeon Progress -->
+                            <Border Background="{StaticResource TertiaryBackground}" 
+                                   CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Dungeon Progress" FontWeight="SemiBold"
+                                              Foreground="{StaticResource TextPrimary}" Margin="0,0,0,8"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <ProgressBar Grid.Column="0" x:Name="CompletionProgressBar" 
+                                                    Height="20" Background="{StaticResource SecondaryBackground}"
+                                                    Foreground="{StaticResource AvalonianColor}" Value="0"/>
+                                        <TextBlock Grid.Column="1" x:Name="CompletionPercentageText" 
+                                                  Text="0%" FontSize="12" FontWeight="Bold"
+                                                  Foreground="{StaticResource TextPrimary}" 
+                                                  VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    </Grid>
+                                    
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Rooms Found" FontSize="10" 
+                                                      Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock x:Name="RoomsFoundText" Text="0" FontSize="14" FontWeight="Bold"
+                                                      Foreground="{StaticResource TextPrimary}"/>
+                                        </StackPanel>
+                                        
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Est. Remaining" FontSize="10" 
+                                                      Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock x:Name="RemainingRoomsText" Text="?" FontSize="14" FontWeight="Bold"
+                                                      Foreground="{StaticResource TextPrimary}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- High Priority Targets -->
+                            <Border Background="{StaticResource TertiaryBackground}" 
+                                   CornerRadius="4" Padding="12" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="High Priority Targets" FontWeight="SemiBold"
+                                              Foreground="{StaticResource TextPrimary}" Margin="0,0,0,8"/>
+                                    
+                                    <ItemsControl x:Name="HighPriorityList">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{StaticResource SecondaryBackground}"
+                                                       CornerRadius="4" Padding="8" Margin="0,2">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                                      Foreground="{StaticResource TextPrimary}"/>
+                                                            <TextBlock Text="{Binding Strategy}" FontSize="10"
+                                                                      Foreground="{StaticResource TextSecondary}"/>
+                                                        </StackPanel>
+                                                        
+                                                        <TextBlock Grid.Column="1" Text="{Binding Value, StringFormat='{}{0:N0}'}"
+                                                                  FontWeight="Bold" Foreground="{StaticResource SuccessColor}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Threat Assessment -->
+                            <Border Background="{StaticResource TertiaryBackground}" 
+                                   CornerRadius="4" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Threat Assessment" FontWeight="SemiBold"
+                                              Foreground="{StaticResource TextPrimary}" Margin="0,0,0,8"/>
+                                    
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Overall Threat" FontSize="10" 
+                                                      Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock x:Name="ThreatLevelText" Text="Low" FontSize="14" FontWeight="Bold"
+                                                      Foreground="{StaticResource SuccessColor}"/>
+                                        </StackPanel>
+                                        
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Bosses" FontSize="10" 
+                                                      Foreground="{StaticResource TextSecondary}"/>
+                                            <TextBlock x:Name="BossCountText" Text="0" FontSize="14" FontWeight="Bold"
+                                                      Foreground="{StaticResource ErrorColor}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                    
+                    <!-- Action Buttons -->
+                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                        <Button x:Name="GeneratePathButton" Content="Generate Optimal Path" 
+                               Style="{StaticResource ModernButton}" 
+                               Click="GeneratePathButton_Click" Margin="0,0,0,8"/>
+                        <Button x:Name="ExportDataButton" Content="Export Avalonian Data" 
+                               Style="{StaticResource ModernButton}" 
+                               Click="ExportDataButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{StaticResource TertiaryBackground}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <TextBlock Grid.Column="0" x:Name="StatusBarText" Text="Ready" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          VerticalAlignment="Center" Margin="12,0"/>
+                
+                <TextBlock Grid.Column="1" x:Name="PacketCountText" Text="Packets: 0" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          VerticalAlignment="Center" Margin="12,0"/>
+                
+                <TextBlock Grid.Column="2" x:Name="ScanTimeText" Text="00:00:00" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          VerticalAlignment="Center" Margin="12,0"/>
+                
+                <TextBlock Grid.Column="3" Text="v1.0.0" 
+                          Foreground="{StaticResource TextSecondary}" 
+                          VerticalAlignment="Center" Margin="12,0"/>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
